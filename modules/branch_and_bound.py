@@ -2,12 +2,10 @@ import pandas as pd
 import time
 import sys
 
-import logging
-logger = logging.getLogger(__name__)
+from tqdm import tqdm
 
-# Set a higher recursion limit for deep search trees, common in Branch and Bound
-# Be cautious with very large datasets, as this can still lead to StackOverflowError
-sys.setrecursionlimit(20000) # Increased from default 1000
+import logging
+
 
 # Global variables to store the best solution found so far
 # Using globals for simplicity in this recursive example, but for larger applications
@@ -49,63 +47,109 @@ def calculate_bound(level, current_profit, current_weight, capacity, items):
 
     return bound_profit
 
-def _knapsack_bnb_recursive(level, current_profit, current_weight, capacity, items, current_selection):
+
+def _knapsack_bnb_iterative(capacity, items, time_limit_seconds):
     """
-    Recursive function for the Branch and Bound algorithm (Depth-First Search).
+    Iterative function for the Branch and Bound algorithm using an explicit stack (DFS).
 
     Args:
-        level (int): The index of the item currently being considered.
-        current_profit (float): The total profit of items selected so far in this path.
-        current_weight (float): The total weight of items selected so far in this path.
         capacity (float): The maximum capacity of the knapsack.
         items (list): A list of tuples (profit, weight, original_index) for all items,
                       sorted by profit/weight ratio in descending order.
-        current_selection (list): A boolean list representing the selection of items
-                                  for the current path, indexed by original_index.
+        time_limit_seconds (float): The maximum time allowed for execution in seconds.
     """
-    global max_profit, optimal_items_selection
+    global max_profit, optimal_items_selection, pbar
 
-    # Pruning 1: If current weight exceeds capacity, this path is invalid.
-    if current_weight > capacity:
-        return
+    # Stack will store tuples: (level, current_profit, current_weight, current_selection_copy)
+    # We push the "exclude" branch first, so "include" branch is processed first (DFS behavior)
+    stack = []
+    
+    # Initial state for the "exclude" branch of the first item
+    initial_selection = [False] * len(items)
+    # The initial node to push onto the stack represents starting before the first item
+    # We push the "exclude" branch first so that the "include" branch for the current level
+    # is explored first when we pop from the stack (LIFO behavior of stack).
+    # This means the first branch considered will be to *include* the first item.
+    stack.append((0, 0, 0, initial_selection)) 
 
-    # Base Case: If all items have been considered
-    if level == len(items):
-        # If this is a valid solution and better than the best found so far
-        if current_weight <= capacity and current_profit > max_profit:
-            max_profit = current_profit
-            # Store a copy of the current selection as the new optimal
-            optimal_items_selection = list(current_selection)
-        return
+    start_time = time.time()
+    nodes_explored = 0 # For potential alternative progress tracking
 
-    # Pruning 2: Calculate upper bound for the current node
-    # If the upper bound of this node is less than or equal to the best profit found so far,
-    # then this branch cannot lead to a better solution, so we prune it.
-    upper_bound = calculate_bound(level, current_profit, current_weight, capacity, items)
-    if upper_bound <= max_profit:
-        return
+    logger.debug(f"Starting iterative B&B. Initial max_profit: {max_profit}")
 
-    # Branching: Consider the current item (items[level])
-    item_profit, item_weight, original_index = items[level]
+    while stack:
+        # Check time limit periodically (e.g., every 10,000 nodes)
+        nodes_explored += 1
+        if nodes_explored % 10000 == 0: # Check every 10,000 nodes
+            elapsed_time = time.time() - start_time
+            logger.debug(f"Elapsed time: {elapsed_time:.2f}s, Nodes explored: {nodes_explored}, max_profit: {max_profit:.2f}, Stack size: {len(stack)}, Current level: {stack[-1][0] if stack else 'N/A'}")
+            if elapsed_time > time_limit_seconds:
+                logger.info(f"\nTime limit ({time_limit_seconds:.2f}s) exceeded after {elapsed_time:.2f}s. Terminating Branch and Bound search.")
+                # Ensure the progress bar is closed if it's active
+                if pbar:
+                    pbar.close()
+                return # Exit the function, current max_profit is the best found so far
 
-    # Branch 1: Include the current item
-    # Temporarily mark the item as taken in the current_selection
-    current_selection[original_index] = True
-    _knapsack_bnb_recursive(level + 1, current_profit + item_profit, current_weight + item_weight, capacity, items, current_selection)
+        level, current_profit, current_weight, current_selection = stack.pop()
 
-    # Branch 2: Exclude the current item
-    # Reset the selection for this item for the "exclude" branch
-    current_selection[original_index] = False
-    _knapsack_bnb_recursive(level + 1, current_profit, current_weight, capacity, items, current_selection)
+        # Update tqdm progress bar (based on level)
+        # Only update if the current level is higher than what tqdm has recorded
+        if pbar and pbar.n < level: # Use 'level' not 'level + 1' for item index
+            pbar.update(level - pbar.n)
 
 
-def solve_knapsack_bnb(items_data, capacity):
+        # Pruning 1: If current weight exceeds capacity, this path is invalid.
+        if current_weight > capacity:
+            # logger.debug(f"Pruning at level {level}: weight {current_weight:.2f} > capacity {capacity:.2f}")
+            continue # Go to the next node in the stack
+
+        # Base Case: If all items have been considered
+        if level == len(items):
+            if current_weight <= capacity and current_profit > max_profit:
+                # logger.debug(f"Found new best solution at level {level}: Profit {current_profit:.2f}, Weight {current_weight:.2f}")
+                max_profit = current_profit
+                optimal_items_selection = list(current_selection) # Store a copy
+            continue # Go to the next node in the stack
+
+        # Pruning 2: Calculate upper bound for the current node
+        upper_bound = calculate_bound(level, current_profit, current_weight, capacity, items)
+        if upper_bound <= max_profit:
+            # logger.debug(f"Pruning at level {level}: bound {upper_bound:.2f} <= max_profit {max_profit:.2f}")
+            continue # Go to the next node in the stack
+
+        # Branching: Consider the current item (items[level])
+        item_profit, item_weight, original_index = items[level]
+
+        # Branch 2: Exclude the current item
+        # Push the "exclude" branch first, so "include" branch is processed later (DFS)
+        # Create a copy of the selection for this branch
+        next_selection_exclude = list(current_selection)
+        next_selection_exclude[original_index] = False # Ensure it's not taken
+        stack.append((level + 1, current_profit, current_weight, next_selection_exclude))
+        # logger.debug(f"Pushed exclude branch for item {level+1}. Stack size: {len(stack)}")
+
+
+        # Branch 1: Include the current item
+        # Only push if it's potentially valid (weight constraint)
+        if current_weight + item_weight <= capacity:
+            # Create a copy of the selection for this branch
+            next_selection_include = list(current_selection)
+            next_selection_include[original_index] = True
+            stack.append((level + 1, current_profit + item_profit, current_weight + item_weight, next_selection_include))
+            # logger.debug(f"Pushed include branch for item {level+1}. Stack size: {len(stack)}")
+        # else:
+            # logger.debug(f"Skipped include branch for item {level+1}: weight {current_weight + item_weight:.2f} > capacity {capacity:.2f}")
+
+
+
+def solve_knapsack_bnb(items_data, capacity, time_limit_seconds=2*60): # Default 30 minutes
     """
     Main function to solve the knapsack problem using Branch and Bound.
 
     Args:
         items_data (list): A list of tuples, where each tuple is (profit, weight).
         capacity (float): The maximum capacity of the knapsack.
+        time_limit_seconds (float): Optional. The maximum time allowed for execution in seconds.
 
     Returns:
         tuple: (optimal_profit, selected_items_list, time_taken)
@@ -113,64 +157,59 @@ def solve_knapsack_bnb(items_data, capacity):
                selected_items_list (list): A list of (profit, weight) tuples for the selected items.
                time_taken (float): The time taken to execute the algorithm in seconds.
     """
-    global max_profit, optimal_items_selection
+    global max_profit, optimal_items_selection, pbar
     max_profit = 0
-    # Initialize optimal_items_selection with False for each item based on its original index
     optimal_items_selection = [False] * len(items_data)
 
-    # Sort items by profit/weight ratio in descending order.
-    # This heuristic helps the bounding function to be more effective and
-    # potentially find good solutions earlier in the DFS.
-    # We also store the original index to reconstruct the solution correctly.
     indexed_items = []
     for i, (p, w) in enumerate(items_data):
-        if w > 0: # Avoid division by zero for ratio
+        if w > 0:
             indexed_items.append((p / w, p, w, i))
-        else: # Handle items with zero weight (if allowed, they can always be taken for free profit)
-            indexed_items.append((float('inf'), p, w, i)) # Assign infinite ratio for zero weight
+        else:
+            indexed_items.append((float('inf'), p, w, i))
 
     sorted_items = sorted(indexed_items, key=lambda x: x[0], reverse=True)
-    # Convert back to (profit, weight, original_index) for easier recursive function arguments
     processed_items = [(item[1], item[2], item[3]) for item in sorted_items]
 
     # --- Optimization: Initialize max_profit with a greedy heuristic ---
-    # This helps prune branches earlier by starting with a better lower bound.
     greedy_current_weight = 0
     greedy_current_profit = 0
     for item_ratio, item_profit, item_weight, original_idx in sorted_items:
         if greedy_current_weight + item_weight <= capacity:
             greedy_current_weight += item_weight
             greedy_current_profit += item_profit
-    # Set the initial max_profit to the profit found by the greedy heuristic
     max_profit = greedy_current_profit
-    # Note: We don't need to store the greedy selection in optimal_items_selection yet,
-    # as the B&B will find and store the true optimal.
     # ------------------------------------------------------------------
 
     start_time = time.time()
 
-    # Start the recursive Branch and Bound process
-    # current_selection is passed as a mutable list to track selections across recursive calls
-    _knapsack_bnb_recursive(0, 0, 0, capacity, processed_items, [False] * len(items_data))
+    # --- TQDM Initialization ---
+    with tqdm(total=len(items_data), desc="Processing Items (Iterative B&B)", unit="item") as bar:
+        pbar = bar
+        _knapsack_bnb_iterative(capacity, processed_items, time_limit_seconds)
+    pbar = None
 
     end_time = time.time()
     time_taken = end_time - start_time
 
-    # Reconstruct the list of selected items based on the optimal_items_selection
+    logger.info(f"Branch and Bound completed in {time_taken:.4f} seconds with {len(items_data)} items processed.")
     final_selected_items = []
     for i, taken in enumerate(optimal_items_selection):
         if taken:
             final_selected_items.append(items_data[i])
 
+    logger.info(f"Max Profit: {max_profit:.2f} with {len(final_selected_items)} items selected.")
     return max_profit, final_selected_items, time_taken
 
 def read_items_from_csv(filepath):
     """
     Reads item data (profit, weight) and knapsack capacity from a CSV file.
     The first line of the CSV is expected to contain:
-    [number_of_items], [knapsack_capacity]
+    [number_of_items] [knapsack_capacity] (space-separated)
     Subsequent lines contain:
-    [profit], [weight] for each item.
+    [profit] [weight] (space-separated) for each item.
+    This function is specifically tailored for the 'large_scale' dataset format where
+    item data is space-separated and there might be additional lines after the items.
 
     Args:
         filepath (str): The path to the CSV file.
@@ -179,52 +218,70 @@ def read_items_from_csv(filepath):
         tuple: (items_data, capacity)
                items_data (list): A list of tuples, where each tuple is (profit, weight).
                capacity (float): The maximum capacity of the knapsack.
-              Returns ([], 0.0) if there's an error.
+              Returns ([], 0.0) if there's an error or if no valid items are found.
     """
     items_data = []
     capacity = 0.0
+    num_items_expected = 0
+    
     try:
         with open(filepath, 'r') as f:
             # Read the first line for number of items and capacity
             first_line = f.readline().strip()
-            parts = first_line.split(' ')
-            if len(parts) != 2:
-                logger.info("Error: First line of CSV must contain 'number_of_items knapsack_capacity'.")
-                return [], 0.0
+            # Split by any whitespace (robust for single or multiple spaces)
+            parts = first_line.split() 
             
-            num_items_expected = int(parts[0].strip())
-            capacity = float(parts[1].strip())
-
-            # Read the remaining lines for item data
-            for line_num, line in enumerate(f, 2): # Start line_num from 2 for error messages
-                line = line.strip()
-                if not line: # Skip empty lines
-                    continue
-                row_parts = line.split(' ')
-                if len(row_parts) != 2:
-                    logger.info(f"Warning: Skipping malformed line {line_num} in CSV: '{line[:30]}...'. Expected 'profit weight'.")
-                    continue
-                
+            if len(parts) == 2:
                 try:
-                    profit = float(row_parts[0].strip())
-                    weight = float(row_parts[1].strip())
-                    items_data.append((profit, weight))
+                    num_items_expected = int(parts[0].strip())
+                    capacity = float(parts[1].strip())
+                    logger.info(f"Read header: Expected {num_items_expected} items, Capacity: {capacity}")
                 except ValueError:
-                    logger.info(f"Warning: Skipping line {line_num} with non-numeric profit/weight: '{line}'.")
+                    logger.error(f"Could not parse number of items or capacity from first line: '{first_line}'.")
+                    return [], 0.0
+            else:
+                logger.error(f"First line of CSV must contain 'number_of_items capacity'. Found: '{first_line}'.")
+                return [], 0.0
+
+            # Read exactly 'num_items_expected' lines for item data
+            for i in range(num_items_expected):
+                line = f.readline().strip()
+                if not line: # Handle case where file ends prematurely
+                    logger.warning(f"File ended prematurely. Expected {num_items_expected} items, but found only {len(items_data)}.")
+                    break # Stop reading items
+
+                # Split by any whitespace
+                row_parts = line.split()
+                
+                # Filter out empty strings that might result from multiple spaces
+                row_parts = [p for p in row_parts if p]
+
+                if len(row_parts) == 2:
+                    try:
+                        profit = float(row_parts[0].strip())
+                        weight = float(row_parts[1].strip())
+                        items_data.append((profit, weight))
+                    except ValueError:
+                        logger.warning(f"Skipping line {i+2} with non-numeric profit/weight: '{line}'.")
+                        # Continue to next line even if this one is malformed, to try and get other items
+                        continue
+                else:
+                    logger.warning(f"Skipping malformed line {i+2} in CSV: '{line}'. Expected 'profit weight'.")
+                    # Continue to next line even if this one is malformed
                     continue
         
         if len(items_data) != num_items_expected:
-            logger.info(f"Warning: Expected {num_items_expected} items based on first line, but found {len(items_data)} items.")
+            logger.warning(f"Actual items loaded ({len(items_data)}) does not match expected ({num_items_expected}). Some item lines might have been malformed or skipped.")
 
         return items_data, capacity
     except FileNotFoundError:
-        logger.info(f"Error: CSV file not found at {filepath}")
+        logger.error(f"CSV file not found at {filepath}")
         return [], 0.0
     except Exception as e:
-        logger.info(f"Error reading CSV file: {e}")
+        logger.error(f"Error reading CSV file: {e}")
         return [], 0.0
 
-# --- Example Usage ---
+
 def run_knapsack(csv_file):
     """
     Example function to run the knapsack solver with a given CSV file.
@@ -256,7 +313,7 @@ def run_knapsack(csv_file):
     
     return optimal_profit, selected_items, time_taken
 
-
+# --- Example Usage ---
 def test():
     # Create a dummy CSV file for demonstration purposes
     # First line: number_of_items, knapsack_capacity
