@@ -1,10 +1,12 @@
 {
     "log_dir": "logs/",
-    "dataset_dir": "D:/OneDrive/01_Estudos/Faculdade/10_periodo/Algoritmos 2/tp2/instances_01_KP/low-dimensional",
-    "optimal_dataset_dir": "D:/OneDrive/01_Estudos/Faculdade/10_periodo/Algoritmos 2/tp2/instances_01_KP/low-dimensional-optimum",
-    "file_delimiter": ",",
-    "columns": ["names", "of", "columns", "to", "use"]
-
+    "dataset_dir": "D:/OneDrive/01_Estudos/Faculdade/10_periodo/Algoritmos 2/tp2/instances_01_KP/large_scale",
+    "optimal_dataset_dir": "D:/OneDrive/01_Estudos/Faculdade/10_periodo/Algoritmos 2/tp2/instances_01_KP/large_scale-optimum",
+    "result_dir": "results/",
+    "branch_and_bound_results_dir": "results/branch_and_bound/",
+    "file_delimiter": ";",
+    "file_header":["n_instances", "capacity"],
+    "columns": ["profit", "weight"]
 }
 
 

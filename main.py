@@ -6,11 +6,11 @@ from datetime import datetime, timedelta
 import argparse
 import time
 
+import pandas as pd
 
 # Local Utility imports
 import modules.utils as ut
 from modules.logger import setup_logger
-
 
 
 # Constants
@@ -29,6 +29,8 @@ logger.info(f"Log file created at: {LOG_PATH}")
 import modules.read_file as file_module
 file_module.logger = logger
 
+import modules.branch_and_bound as bb_module
+bb_module.logger = logger
 
 def main():
     
@@ -37,7 +39,28 @@ def main():
             dataset_dir=config["dataset_dir"],
             optimum_dir=config["optimal_dataset_dir"]
         )
-
+    
+    optimum = {}
+    for file_name in file_names:
+        logger.info(f"Processing file: {file_name}")
+        file_path = os.path.join(config["dataset_dir"], file_name)
+        
+        
+        # Solve the knapsack problem using branch and bound
+        optimal_profit, selected_items, time_taken = bb_module.run_knapsack(file_path)
+        logger.info(f"Optimal profit for {file_name}: {optimal_profit} in {time_taken:.4f} seconds")
+        logger.debug(f"Selected items: {selected_items}")
+        # Store the optimal profit and selected items
+        optimum[file_name] = {
+            "optimal_profit": optimal_profit,
+            "selected_items": selected_items,
+            "time_taken": time_taken
+        }
+    
+    # Save the results to a file
+    output_file = os.path.join(config["branch_and_bound_results_dir"], f"branch_and_bound_results_{os.path.basename(config["dataset_dir"])}.csv")
+    pd.DataFrame.from_dict(optimum, orient='index').to_csv(output_file, sep=config["file_delimiter"])
+    logger.info(f"Results saved to {output_file}")
     logger.info(f"main function ended successfully, returning 0")
     return 0
         
@@ -50,6 +73,9 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"An error occurred: {e}")
         success = False
+        
+        
+        
         
     logger.debug(f"Script execution success status: {success}")
     if success:
