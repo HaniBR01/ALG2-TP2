@@ -224,7 +224,7 @@ def read_items_from_csv(filepath):
         logger.info(f"Error reading CSV file: {e}")
         return [], 0.0
 
-# --- Example Usage ---
+
 def run_knapsack(csv_file):
     """
     Example function to run the knapsack solver with a given CSV file.
@@ -256,7 +256,7 @@ def run_knapsack(csv_file):
     
     return optimal_profit, selected_items, time_taken
 
-
+# --- Example Usage ---
 def test():
     # Create a dummy CSV file for demonstration purposes
     # First line: number_of_items, knapsack_capacity
