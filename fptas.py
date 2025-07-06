@@ -1,5 +1,13 @@
-def approximate_knapsack(valores, pesos, capacidade):
-    epsilon = 0.5
+def approximate_knapsack(valores, pesos, capacidade,epsilon=0.5):
+    """
+    Args:
+        valores (list): Lista de valores dos itens.
+        pesos (list): Lista de pesos dos itens.
+        capacidade (int): Capacidade máxima da mochila.
+        epsilon (float): Fator de aproximação, deve ser maior que 0 e menor que 1.
+    Returns: tuple
+        (int, list): Tupla contendo o valor total aproximado e a lista de índices
+    """
     n = len(valores)
     v_max = max(valores) if valores else 0
 
