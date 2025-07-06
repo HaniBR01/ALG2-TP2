@@ -1,0 +1,10 @@
+{
+    "log_dir": "logs/",
+    "dataset_dir": "D:/OneDrive/01_Estudos/Faculdade/10_periodo/Algoritmos 2/tp2/instances_01_KP/low-dimensional",
+    "optimal_dataset_dir": "D:/OneDrive/01_Estudos/Faculdade/10_periodo/Algoritmos 2/tp2/instances_01_KP/low-dimensional-optimum",
+    "file_delimiter": ",",
+    "columns": ["names", "of", "columns", "to", "use"]
+
+}
+
+

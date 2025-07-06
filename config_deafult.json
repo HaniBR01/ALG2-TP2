@@ -1,0 +1,8 @@
+{
+    "log_dir": "logs/",
+    "large_scale_dataset_path": "path/to/large_scale_dataset",
+    "low_dimensional_dataset_path": "path/to/low_dimensional_dataset",
+    "file_delimiter": ",",
+    "columns": ["names", "of", "columns", "to", "use"]
+
+}
