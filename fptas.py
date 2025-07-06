@@ -1,3 +1,5 @@
+import gc
+
 def approximate_knapsack(valores, pesos, capacidade,epsilon=0.5):
     """
     Args:
@@ -52,6 +54,10 @@ def approximate_knapsack(valores, pesos, capacidade,epsilon=0.5):
     
     for index in selected_items_indices:
         total_value += valores[index]
+
+    # Força liberação de memória
+    del dp, item_selection, scaled_valores
+    gc.collect()
 
     return total_value, selected_items_indices
 
