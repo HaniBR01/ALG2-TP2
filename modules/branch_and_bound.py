@@ -142,7 +142,7 @@ def _knapsack_bnb_iterative(capacity, items, time_limit_seconds):
 
 
 
-def solve_knapsack_bnb(items_data, capacity, time_limit_seconds=2*60): # Default 30 minutes
+def solve_knapsack_bnb(items_data, capacity, time_limit_seconds=10*60): # Default 30 minutes
     """
     Main function to solve the knapsack problem using Branch and Bound.
 
