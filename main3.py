@@ -1,4 +1,5 @@
 import os
+import time
 from greedy import knapsack_2_approx_guloso
 
 def ler_instancia(caminho_arquivo, caminho_otimo, ignorar_ultima_linha=False):
@@ -36,12 +37,15 @@ if __name__ == "__main__":
                         caminho_arquivo, caminho_otimo, ignorar_ultima_linha=ignorar_ultima
                     )
                     print(f"arquivo: {nome_arquivo}")
+                    inicio = time.time()
                     valor_greedy, itens_greedy = knapsack_2_approx_guloso(valores, pesos, capacidade)
+                    fim = time.time()
+                    tempo = fim - inicio
                     itens_indices = [i[2] for i in itens_greedy]
-                    resultados.append(f"{nome_arquivo};{otimo};{valor_greedy};{itens_indices}\n")
-                    print(f"Arquivo '{nome_arquivo}' processado: Valor ótimo = {otimo}, Valor greedy = {valor_greedy}")
+                    resultados.append(f"{nome_arquivo};{otimo};{valor_greedy};{itens_indices};{tempo}\n")
+                    print(f"Arquivo '{nome_arquivo}' processado: Valor ótimo = {otimo}, Valor greedy = {valor_greedy}, Tempo = {tempo:.6f} segundos")
                 except Exception as e:
                     print(f"Erro ao processar '{nome_arquivo}': {e}")
         with open(log_path, "w", encoding="utf-8") as log_file:
-            log_file.write(";optimal_profit;greedy_profit;selected_items\n")
+            log_file.write(";optimal_profit;greedy_profit;selected_items;time_taken\n")
             log_file.writelines(resultados)
